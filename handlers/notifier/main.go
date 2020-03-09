@@ -6,7 +6,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/Tai-Yaki/s3-sns-sqs-lambda-slack-sample/handlers/notifier/slack"
+	"github.com/Tai-Yaki/s3-sns-sqs-lambda-slack-go-sample/handlers/notifier/slack"
 )
 
 var client *slack.client
