@@ -1,0 +1,162 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Description: Fan out sample using AWS Lambda, SQS, SNS ans Go
+Parameters:
+  WebhookURL:
+    Type: String
+  Channel:
+    Type: String
+  UserName:
+    Type: String
+  Icon:
+    Type: String
+  FileBucket:
+    Type: String
+Resources:
+  WriteExtLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://stack-bucket-for-comp-sample-20200303-taiki/a73868e955b594f686f6de3d0da0d92f
+      Handler: write_ext
+      Runtime: go1.x
+      Timeout: 10
+      Tracing: Active
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue:
+              Fn::GetAtt:
+              - ForExtLambdaQueue
+              - Arn
+            BatchSize: 10
+  WriteExtLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${WriteExtLambda}
+      RetentionInDays: 1
+  WriteFileNameLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://stack-bucket-for-comp-sample-20200303-taiki/a73868e955b594f686f6de3d0da0d92f
+      Handler: write_file_name
+      Runtime: go1.x
+      Timeout: 10
+      Tracing: Active
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue:
+              Fn::GetAtt:
+              - ForFileNameLambdaQueue
+              - Arn
+            BatchSize: 10
+  WriteFileNameLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${WriteFileNameLambda}
+      RetentionInDays: 1
+  NotifierLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://stack-bucket-for-comp-sample-20200303-taiki/a73868e955b594f686f6de3d0da0d92f
+      Handler: notifier
+      Runtime: go1.x
+      Timeout: 10
+      Tracing: Active
+      Events:
+        SNSEvent:
+          Type: SNS
+          Properties:
+            Topic:
+              Ref: S3FileTopic
+      Environment:
+        Variables:
+          WEBHOOK_URL:
+            Ref: WebhookURL
+          CHANNEL:
+            Ref: Channel
+          USER_NAME:
+            Ref: UserName
+          ICON:
+            Ref: Icon
+  NotifierLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: /aws/lambda/${NotifierLambda}
+      RetentionInDays: 1
+  SQSLambdaSample:
+    Type: AWS::S3::Bucket
+    DependsOn: SNSTopicPolicy
+    Properties:
+      BucketName:
+        Ref: FileBucket
+      NotificationConfiguration:
+        TopicConfigurations:
+        - Topic:
+            Ref: S3FileTopic
+          Event: s3:ObjectCreated:Put
+  ForExtLambdaQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 20
+      MessageRetentionPeriod: 60
+  ForFileNameLambdaQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 20
+      MessageRetentionPeriod: 60
+  SQSPolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Effect: Allow
+          Principal: '*'
+          Action: sqs:*
+          Resource: '*'
+          Condition:
+            StringEquals:
+              aws:SourceArn:
+              - Ref: S3FileTopic
+      Queues:
+      - Ref: ForExtLambdaQueue
+      - Ref: ForFileNameLambdaQueue
+  S3FileTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+      - Endpoint:
+          Fn::GetAtt:
+          - ForExtLambdaQueue
+          - Arn
+        Protocol: sqs
+      - Endpoint:
+          Fn::GetAtt:
+          - ForFileNameLambdaQueue
+          - Arn
+        Protocol: sqs
+      TopicName: s3-file-topic
+  SNSTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+      - Ref: S3FileTopic
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action: sns:Publish
+          Resource:
+            Ref: S3FileTopic
+          Condition:
+            ArnLike:
+              aws:SourceArn:
+                Fn::Sub: arn:aws:s3:::${FileBucket}
+          Principal:
+            AWS: '*'

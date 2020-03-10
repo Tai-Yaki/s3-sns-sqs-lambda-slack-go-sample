@@ -1,4 +1,4 @@
-module s3-sns-sqs-lambda-slack-go-sample
+module github.com/Tai-Yaki/s3-sns-sqs-lambda-slack-go-sample
 
 go 1.13
 

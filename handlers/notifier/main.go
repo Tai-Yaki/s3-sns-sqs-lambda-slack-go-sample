@@ -6,10 +6,11 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+
 	"github.com/Tai-Yaki/s3-sns-sqs-lambda-slack-go-sample/handlers/notifier/slack"
 )
 
-var client *slack.client
+var client *slack.Client
 
 func main() {
 	lambda.Start(handler)
